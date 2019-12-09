@@ -44,7 +44,7 @@ public:
     decltype (BackgroundWorker::users_)& GetUsers();
     SearchResultList& GetSearchResult();
     std::map<std::int64_t, std::string>& ChatTitles();
-    unsigned long long bg_messages_extracted_ {};
+    std::int32_t bg_messages_extracted_ {};
     Account( int index, LoginInformation &, QObject* parent );
     ~Account() override;
     void InitiateLoginSequence();
@@ -52,7 +52,7 @@ public:
     void SendRequest( FunctionPtr request, CustomRequestHandler handler );
     void StartBackgroundSearch( std::string const & text, int timeout, CustomRequestHandler&& );
     void StopBackgroundSearch();
-    void LogOut();
+    void PerformSearch( FunctionPtr request, CustomRequestHandler handler );
 signals:
     void requested_authorization_code( int );
     void requested_authorization_password( int );

@@ -8,13 +8,14 @@ Account::Account(int const index , LoginInformation& login_info , QObject* paren
 
 Account::~Account()
 {
+    bg_search_results_.clear();
     thread_is_running = false;
     Cleanup();
     if( bg_search_timer_ptr_ ) bg_search_timer_ptr_->stop();
     bg_search_timer_ptr_.reset();
-    client_.reset();
 
     login_info_.is_logged_in_ = false;
+    client_.reset();
 }
 
 void Account::Cleanup()
@@ -30,7 +31,7 @@ void Account::Cleanup()
         delete background_worker_;
         background_worker_ = nullptr;
     }
-    authentication_query_id_ = 0;
+    authentication_query_id_ = current_request_id = 0;
     request_handlers_.clear();
 }
 
@@ -106,12 +107,6 @@ void Account::SendAuthorizationRequest( FunctionPtr request )
     SendRequest( std::move( request ), CreateAuthenticationHandler() );
 }
 
-void Account::LogOut()
-{
-    authentication_query_id_ = 0;
-    thread_is_running = false;
-}
-
 void Account::RequestForChats()
 {
     background_worker_->SendRequest( NextID(), td_api::make_object<td_api::getChats>(
@@ -160,6 +155,13 @@ std::map<std::int64_t, std::string>& Account::ChatTitles()
 SearchResultList& Account::GetSearchResult()
 {
     return bg_search_results_;
+}
+
+void Account::PerformSearch(FunctionPtr request, CustomRequestHandler handler)
+{
+    bg_search_results_.clear();
+    bg_messages_extracted_ = 0;
+    SendRequest( std::move( request ), std::move( handler ) );
 }
 
 void Account::StartBackgroundSearch( std::string const &text, int const timeout,

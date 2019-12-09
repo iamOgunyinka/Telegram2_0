@@ -34,15 +34,21 @@ MainDialog::MainDialog(QWidget *parent)
                       &MainDialog::OnStartScheduledSearchClicked );
     QObject::connect( ui->search_button, &QPushButton::clicked, this,
                       &MainDialog::OnSearchButtonClicked );
-    QObject::connect( this, &MainDialog::search_done, [=]( int const & index ){
+    QObject::connect( this, &MainDialog::search_done, [=]( SearchResultType t, int const index )
+    {
         QMetaObject::invokeMethod(this, "OnAccountSearchDone", Qt::QueuedConnection,
-                                  Q_ARG( int, index ));
+                                  Q_ARG( SearchResultType, t ), Q_ARG( int, index ));
     });
     ui->user_list_view->setContextMenuPolicy( Qt::CustomContextMenu );
     QObject::connect( ui->user_list_view, &QListView::customContextMenuRequested, this,
                       &MainDialog::OnCustomMenuRequested );
     QObject::connect( ui->schedule_stop_button, &QPushButton::clicked, this,
                       &MainDialog::OnStopScheduledSearchClicked );
+    QObject::connect( ui->export_result_button, &QPushButton::clicked, [=]{
+        if( !background_search_scheduled_ ){
+            StartExport();
+        }
+    });
     accounts_model_.setColumnCount( 1 );
     setWindowIcon( qApp->style()->standardPixmap( QStyle::SP_DesktopIcon ));
     DisableAllButtons();
@@ -59,6 +65,8 @@ void MainDialog::DisableAllButtons()
     ui->remove_user_button->setEnabled( false );
     ui->login_user_button->setEnabled( false );
     ui->working_time_button->setEnabled( false );
+    ui->login_user_button->setVisible( false );
+    ui->remove_user_button->setVisible( false );
 }
 
 MainDialog::~MainDialog()
@@ -79,8 +87,8 @@ void MainDialog::OnCustomMenuRequested( QPoint const &p )
 
         QObject::connect( action_login, &QAction::triggered, this,
                           &MainDialog::OnLoginButtonClicked );
-        //        QObject::connect( action_logout, &QAction::triggered, this,
-        //                          &MainDialog::OnLogoutButtonClicked );
+        QObject::connect( action_logout, &QAction::triggered, this,
+                          &MainDialog::OnLogoutButtonClicked );
         QObject::connect( action_remove, &QAction::triggered, this,
                           &MainDialog::OnRemoveAccountButtonClicked );
 
@@ -91,18 +99,33 @@ void MainDialog::OnCustomMenuRequested( QPoint const &p )
     custom_menu.exec( ui->user_list_view->mapToGlobal( p ) );
 }
 
-void MainDialog::OnAccountSearchDone( int const index )
+void MainDialog::OnAccountSearchDone( SearchResultType type, int const index )
 {
+    ui->search_button->setEnabled( true );
+    ++requests_responded_to_;
+    if( type == SearchResultType::NoResult ){
+        QMessageBox::information( this, "Search", "No result found" );
+        return;
+    } else if( type == SearchResultType::ServerError ){
+        QMessageBox::critical( this, "Search", "There was an error on the server-side, so search "
+                                               "could not be completed" );
+        return;
+    }
+
     auto const & result{ telegram_accounts_[index]->GetSearchResult() };
-    if( proposed_requests_ > 1 ){
-        ui->textEdit->append( tr( "%1 items found for %2" ).arg( result.size() )
-                              .arg( logins_[index].phone_number_ ) );
-    } else {
+
+    if( !background_search_scheduled_ && proposed_requests_ == 1 ){
         ui->textEdit->clear();
         for( auto const & message: result ){
-            ui->textEdit->append( tr( "%1(%2): %3" ).arg( message.sender ).arg( message.chat_name )
-                                  .arg( message.text ) );
+            ui->textEdit->append( tr( "%1(%2): %3" ).arg( message.sender )
+                                  .arg( message.chat_name ).arg( message.text ) );
         }
+    } else {
+        ui->textEdit->append( tr( "%1 items found for %2" ).arg( result.size() )
+                              .arg( logins_[index].phone_number_ ) );
+    }
+    if( !background_search_scheduled_ && requests_responded_to_ == proposed_requests_ ){
+        ui->export_result_button->setEnabled( true );
     }
 }
 
@@ -153,20 +176,22 @@ bool MainDialog::RemoveDir( QString const & dir_name )
 void MainDialog::OnSearchButtonClicked()
 {
     proposed_requests_ = requests_responded_to_ = 0;
+    ui->export_result_button->setEnabled( false );
+    ui->textEdit->clear();
     if( background_search_scheduled_ ){
         QMessageBox::critical( this, "Task", "You have a background search ongoing, suspend "
-                                                "it first" );
+                                             "it first" );
         return;
     }
-    fg_search_text_ = ui->query_line->text().trimmed().toStdString();
+    search_text_ = ui->query_line->text().trimmed().toStdString();
     for( int i = 1; i != accounts_model_.rowCount(); ++i ){
         QStandardItem* item { accounts_model_.item( i ) };
         if( item->checkState() == Qt::Unchecked || !logins_[i].is_logged_in_ ) continue;
-        telegram_accounts_[i]->SendRequest( td_api::make_object<td_api::searchMessages>(
-                                                fg_search_text_, 0, 0, 0, MaxResultAllowed ),
-                                            [=]( ObjectPtr result )
+        telegram_accounts_[i]->PerformSearch( td_api::make_object<td_api::searchMessages>(
+                                                  search_text_, 0, 0, 0, MaxResultAllowed ),
+                                              [=]( ObjectPtr result )
         {
-            OnSearchResultObtained( i, fg_search_text_,
+            OnSearchResultObtained( i, search_text_,
                                     std::make_shared<ObjectPtr>( std::move( result ) ));
         });
         ++proposed_requests_;
@@ -178,16 +203,16 @@ void MainDialog::OnStartScheduledSearchClicked()
 {
     SchedulerDialog scheduler_dialog{ this };
     if( scheduler_dialog.exec() != QDialog::Accepted ) return;
-    bg_search_text_ = scheduler_dialog.GetText().toStdString();
+    search_text_ = scheduler_dialog.GetText().toStdString();
 
     bg_elapsed_timer_ = requests_responded_to_ = proposed_requests_ = 0;
     int const timeout{ scheduler_dialog.GetTime() };
     for( int i = 1; i != accounts_model_.rowCount(); ++i ){
         QStandardItem* item { accounts_model_.item( i ) };
         if( item->checkState() == Qt::Unchecked || !logins_[i].is_logged_in_ ) continue;
-        telegram_accounts_[i]->StartBackgroundSearch( bg_search_text_, timeout, [=]( ObjectPtr ptr )
+        telegram_accounts_[i]->StartBackgroundSearch( search_text_, timeout, [=]( ObjectPtr ptr )
         {
-            OnSearchResultObtained( i, bg_search_text_,
+            OnSearchResultObtained( i, search_text_,
                                     std::make_shared<ObjectPtr>( std::move( ptr ) ) );
         });
         ++proposed_requests_;
@@ -208,6 +233,7 @@ void MainDialog::OnStartScheduledSearchClicked()
     background_search_scheduled_ = true;
     ui->schedule_start_button->setEnabled( false );
     ui->schedule_stop_button->setEnabled( true );
+    ui->export_result_button->setEnabled( false );
     ui->textEdit->clear();
     ui->timer_display_button->setText( tr( "Interval: %1s" ).arg( timeout ) );
     bg_search_elapsed_timer_->start( ThousandMilliseconds );
@@ -216,11 +242,21 @@ void MainDialog::OnStartScheduledSearchClicked()
 void MainDialog::OnSearchResultObtained( int const index, std::string const & text,
                                          std::shared_ptr<ObjectPtr> ptr )
 {
-    if( (*ptr)->get_id() == td_api::error::ID ) return;
+    if( (*ptr)->get_id() == td_api::error::ID ){
+        if( !background_search_scheduled_ ){
+            emit search_done( SearchResultType::ServerError, index );
+        }
+        return;
+    }
     auto messages_ptr = td::move_tl_object_as<td_api::messages>( *ptr );
     auto& messages = messages_ptr->messages_;
     auto& messages_extracted{ telegram_accounts_[index]->bg_messages_extracted_ };
-    if( ( messages_extracted >= messages_ptr->total_count_ ) || messages.empty() ) return;
+    if( ( messages_extracted >= messages_ptr->total_count_ ) || messages.empty() ){
+        if( !background_search_scheduled_ ){
+            emit search_done( SearchResultType::NoResult, index );
+        }
+        return;
+    }
     auto& users { telegram_accounts_[index]->GetUsers() };
     auto& search_results{ telegram_accounts_[index]->GetSearchResult() };
     auto& chat_titles{ telegram_accounts_[index]->ChatTitles() };
@@ -240,7 +276,7 @@ void MainDialog::OnSearchResultObtained( int const index, std::string const & te
                                                        message_id, chat_id, date_id } );
         }
         if( ++messages_extracted >= messages_ptr->total_count_ ){
-            emit search_done( index );
+            emit search_done( SearchResultType::Successful, index );
             return;
         }
     }
@@ -257,19 +293,13 @@ void MainDialog::OnSearchResultObtained( int const index, std::string const & te
     }
 }
 
-void MainDialog::OnStopScheduledSearchClicked()
+void MainDialog::StartExport()
 {
-    ui->schedule_stop_button->setEnabled( false );
-    bg_search_elapsed_timer_->stop();
-    bg_search_elapsed_timer_.reset();
-    background_search_scheduled_ = false;
-    ui->textEdit->append( "Background search stopped" );
-    ui->schedule_start_button->setDisabled( false );
     QString const directory{ QFileDialog::getExistingDirectory( this, "Directory" ) };
     for( int i = 1; i != logins_.size(); ++i ){
         if( !telegram_accounts_[i] || !logins_[i].is_logged_in_ ||
             accounts_model_.item( i )->checkState() == Qt::Unchecked ) continue;
-        telegram_accounts_[i]->StopBackgroundSearch();
+        if( background_search_scheduled_ ) telegram_accounts_[i]->StopBackgroundSearch();
         if( directory.isEmpty() || directory.isNull() ) continue;
         auto& search_result{ telegram_accounts_[i]->GetSearchResult() };
         if( !search_result.empty() ) {
@@ -279,6 +309,22 @@ void MainDialog::OnStopScheduledSearchClicked()
     if( !directory.isEmpty() ){
         QMessageBox::information( this, "Status", "File(s) saved successfully" );
     }
+}
+
+void MainDialog::OnStopScheduledSearchClicked()
+{
+    ui->schedule_stop_button->setEnabled( false );
+    bg_search_elapsed_timer_->stop();
+    bg_search_elapsed_timer_.reset();
+    background_search_scheduled_ = false;
+    for( int i = 1; i != logins_.size(); ++i ){
+        if( logins_[i].is_logged_in_ && accounts_model_.item( i )->checkState() == Qt::Checked ){
+            telegram_accounts_[i]->StopBackgroundSearch();
+        }
+    }
+    ui->textEdit->append( "Background search stopped" );
+    ui->schedule_start_button->setDisabled( false );
+    StartExport();
 }
 
 void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
@@ -304,7 +350,7 @@ void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
     sheet->write( "I1", tr( "Phone number" ) );
     sheet->write( "J1", logins_[index].phone_number_ );
     sheet->write( "L1", "Keyword" );
-    sheet->write( "M1", QString::fromStdString( bg_search_text_ ) );
+    sheet->write( "M1", QString::fromStdString( search_text_ ) );
 
     std::size_t counter{ 3 };
     QSet<QString> unique_elements{};
@@ -435,7 +481,6 @@ void MainDialog::HandshakeCompleted( int const index )
 void MainDialog::CheckIfLoginCompleted()
 {
     ++requests_responded_to_;
-    //ui->user_list_view->setModel( &accounts_model_ );
     if( requests_responded_to_ == proposed_requests_ ){
         ui->search_button->setEnabled( true );
         if( !background_search_scheduled_ ) ui->schedule_start_button->setEnabled( true );
@@ -466,7 +511,7 @@ void MainDialog::OnLogoutButtonClicked()
             continue;
         }
         user_account.is_logged_in_ = false;
-        telegram_accounts_[i]->LogOut();
+        telegram_accounts_[i].reset( new Account( i, logins_[i], this ) );
         item->setText( user_account.phone_number_ + "(Offline)" );
         ++logged_out_accounts;
     }

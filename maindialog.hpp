@@ -11,7 +11,16 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainDialog; }
 QT_END_NAMESPACE
 
+
+enum class SearchResultType
+{
+    Successful = 0xA,
+    NoResult,
+    ServerError
+};
+
 Q_DECLARE_METATYPE( std::shared_ptr<ObjectPtr> );
+Q_DECLARE_METATYPE( SearchResultType );
 
 class MainDialog : public QDialog
 {
@@ -31,26 +40,26 @@ class MainDialog : public QDialog
     void OnUserItemSelected(QStandardItem*);
     void OnCustomMenuRequested( QPoint const & );
     void AddLoginInformation( QString const &info );
+    void StartExport();
     void ExportSearchResult( QString const & dir_name, int index, SearchResultList const & );
     static QString const startup_filename;
 public:
     MainDialog(QWidget *parent = nullptr);
     ~MainDialog() override;
 signals:
-    void search_done( int index );
+    void search_done( SearchResultType, int );
 public slots:
     void AuthorizationCodeNeeded( int );
     void AuthorizationPasswordNeeded( int );
     void HandshakeCompleted( int );
     void ShowError( int index, QString const & message );
-    void OnAccountSearchDone( int index );
+    void OnAccountSearchDone( SearchResultType, int );
     void OnSearchResultObtained( int, std::string const &, std::shared_ptr<ObjectPtr> );
 private:
     QString const select_all{ "Select all" };
     bool background_search_scheduled_{false};
     Ui::MainDialog *ui;
-    std::string bg_search_text_{};
-    std::string fg_search_text_{};
+    std::string search_text_{};
     int proposed_requests_{};
     int requests_responded_to_{};
     std::unique_ptr<QTimer> bg_search_elapsed_timer_{ nullptr };

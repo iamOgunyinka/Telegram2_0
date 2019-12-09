@@ -12,7 +12,16 @@ BackgroundWorker::BackgroundWorker( std::shared_ptr<td::Client>& client, CustomR
 {
 }
 
-BackgroundWorker::~BackgroundWorker() = default;
+BackgroundWorker::~BackgroundWorker()
+{
+    authorization_granted_ = false;
+    error_set_ = false;
+    need_restart_ = false;
+    request_sent_ = false;
+    running_ = false;
+    authorization_state_ptr_.reset();
+    chat_title_.clear();
+}
 
 void BackgroundWorker::InitiateLoginSequence()
 {
