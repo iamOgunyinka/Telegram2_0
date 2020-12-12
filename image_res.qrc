@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/images">
+        <file>offline.png</file>
+        <file>online.png</file>
+    </qresource>
+</RCC>

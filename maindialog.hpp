@@ -27,7 +27,7 @@ class MainDialog : public QDialog
     Q_OBJECT
     void LoadStartupFile();
     bool RemoveDir( QString const & );
-    void FlushLoginInfo();
+    void SaveLoginInfoToDisk();
     void DisableAllButtons();
     void OnCreateUserButtonClicked();
     void OnLoginButtonClicked();
@@ -37,12 +37,10 @@ class MainDialog : public QDialog
     void OnSearchButtonClicked();
     void OnStartScheduledSearchClicked();
     void OnStopScheduledSearchClicked();
-    void OnUserItemSelected(QStandardItem*);
-    void OnCustomMenuRequested( QPoint const & );
     void AddLoginInformation( QString const &info );
     void StartExport();
     void ExportSearchResult( QString const & dir_name, int index, SearchResultList const & );
-    static QString const startup_filename;
+    static char const * const startup_filename;
 public:
     MainDialog(QWidget *parent = nullptr);
     ~MainDialog() override;
@@ -62,11 +60,11 @@ private:
     std::string search_text_{};
     int proposed_requests_{};
     int requests_responded_to_{};
+    int selected_accounts_{};
     std::unique_ptr<QTimer> bg_search_elapsed_timer_{ nullptr };
     unsigned long long bg_elapsed_timer_{};
 
-    QStandardItemModel accounts_model_{};
-    QList<LoginInformation> logins_{};
-    QList<std::shared_ptr<Account>> telegram_accounts_;
+    QVector<std::shared_ptr<LoginInformation>> logins_{};
+    QVector<std::shared_ptr<Account>> telegram_accounts_{};
 };
 #endif // MAINDIALOG_HPP

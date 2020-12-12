@@ -15,11 +15,11 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 include(src/xlsx/qtxlsx.pri)
-INCLUDEPATH += "C:\\tdlib64\\include"
+INCLUDEPATH += "D:\\TDLibv15\\include"
 
-LIBS += -L"C:\\tdlib64\\debug\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
+LIBS += -L"D:\\TDLibv15\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
     -ltddb -ltdsqlite -ltdjson
-LIBS += -L"C:\\vcpkg\\installed\\x64-windows\\debug\\lib" -llibeay32 -lssleay32 -lzlibd
+LIBS += -L"D:\\vcpkg\\installed\\x64-windows\\debug\\lib" -llibeay32 -lssleay32 -lzlibd
 
 #LIBS += -L"C:\\tdlib64\\release\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
 #    -ltddb -ltdsqlite -ltdjson
@@ -28,6 +28,7 @@ LIBS += -L"C:\\vcpkg\\installed\\x64-windows\\debug\\lib" -llibeay32 -lssleay32 
 
 SOURCES += \
     account.cpp \
+    accountwidget.cpp \
     backgroundworker.cpp \
     main.cpp \
     maindialog.cpp \
@@ -36,12 +37,14 @@ SOURCES += \
 
 HEADERS += \
     account.hpp \
+    accountwidget.hpp \
     backgroundworker.hpp \
     maindialog.hpp \
     registrationdialog.hpp \
     schedulerdialog.hpp
 
 FORMS += \
+    accountwidget.ui \
     maindialog.ui \
     registrationdialog.ui \
     schedulerdialog.ui
@@ -50,3 +53,6 @@ FORMS += \
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+RESOURCES += \
+    image_res.qrc
