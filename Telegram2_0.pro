@@ -17,13 +17,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 include(src/xlsx/qtxlsx.pri)
 INCLUDEPATH += "D:\\TDLibv15\\include"
 
-LIBS += -L"D:\\TDLibv15\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
-    -ltddb -ltdsqlite -ltdjson
-LIBS += -L"D:\\vcpkg\\installed\\x64-windows\\debug\\lib" -llibeay32 -lssleay32 -lzlibd
-
-#LIBS += -L"C:\\tdlib64\\release\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
+#LIBS += -L"D:\\TDLibv15\\debug\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
 #    -ltddb -ltdsqlite -ltdjson
-#LIBS += -L"C:\\vcpkg\\installed\\x64-windows\\lib" -llibeay32 -lssleay32 -lzlib
+#LIBS += -L"D:\\vcpkg\\installed\\x64-windows\\debug\\lib" -llibeay32 -lssleay32 -lzlibd
+
+LIBS += -L"D:\\TDLibv15\\release\\lib" -ltdnet -ltdcore -ltdutils -ltdclient -ltdactor \
+    -ltddb -ltdsqlite -ltdjson
+LIBS += -L"D:\\vcpkg\\installed\\x64-windows\\lib" -llibeay32 -lssleay32 -lzlib
 
 
 SOURCES += \

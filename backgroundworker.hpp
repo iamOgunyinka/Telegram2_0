@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <functional>
+#include <QMap>
 #include <td/telegram/Client.h>
 
 namespace td_api = td::td_api;
@@ -59,6 +60,7 @@ public:
   void StartPolling();
   std::map<std::int32_t, td_api::object_ptr<td_api::user>> users_;
   std::map<std::int64_t, std::string>& ChatTitles();
+  auto& Groups() { return channels_map_; }
   void SetHasError();
 signals:
   void handshake_completed( bool has_error );
@@ -83,7 +85,7 @@ private:
   unsigned long long& authentication_query_id_;
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_ptr_;
   std::map<std::int64_t, std::string> chat_title_;
-
+  QMap<std::int64_t, QString> channels_map_;
   QObject *parent_window_{ nullptr };
 };
 

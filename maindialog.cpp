@@ -99,8 +99,9 @@ void MainDialog::OnAccountSearchDone( SearchResultType type, int const index )
   if( !background_search_scheduled_ && proposed_requests_ == 1 ){
     ui->textEdit->clear();
     for( auto const & message: result ){
-      ui->textEdit->append( tr( "%1(%2): %3" ).arg( message.sender )
-                            .arg( message.chat_name ).arg( message.text ) );
+      ui->textEdit->append( tr( "%1(%2)(%3): %4" ).arg( message.sender_firstname )
+                            .arg( message.sender_username ).arg( message.chat_name )
+                            .arg( message.text ) );
     }
   } else {
     ui->textEdit->append( tr( "%1 items found for %2" ).arg( result.size() )
@@ -215,7 +216,9 @@ void MainDialog::OnStartScheduledSearchClicked()
   int const timeout{ scheduler_dialog.GetTime() };
   for( int i = 0; i != ui->flayout->count(); ++i ){
     auto account_widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( i )->widget() );
-    if( !account_widget->IsSelected() || !logins_[i]->is_logged_in_ ) continue;
+    if( !account_widget->IsSelected() || !logins_[i]->is_logged_in_ ){
+      continue;
+    }
     telegram_accounts_[i]->StartBackgroundSearch( search_text_, timeout, [=]( ObjectPtr ptr )
     {
       OnSearchResultObtained( i, search_text_,
@@ -372,8 +375,14 @@ void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
 
   std::size_t counter{ 3 };
   QSet<QString> unique_elements{};
+  auto const widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( index )->widget() );
+  auto const & selected_groups = widget->SelectedItems();
+  bool const using_filter = selected_groups.size() > 0;
 
   for( auto const & item: search_result ){
+    if( using_filter && !selected_groups.contains( item.chat_id ) ){
+      continue;
+    }
     auto const unique_text = ( item.sender_username.toLower() + ": " + item.text.toLower() )
         .trimmed();
     if( unique_elements.contains( unique_text ) ){
@@ -478,6 +487,7 @@ void MainDialog::HandshakeCompleted( int const index )
   auto item = ui->flayout->itemAt( index );
   auto account_widget = qobject_cast<AccountWidget*>( item->widget() );
   account_widget->SetStatus( user_status_e::online );
+  account_widget->SetGroupNames( telegram_accounts_[index]->Groups() );
   CheckIfLoginCompleted();
 }
 
@@ -489,8 +499,6 @@ void MainDialog::CheckIfLoginCompleted()
     if( !background_search_scheduled_ ){
       ui->schedule_start_button->setEnabled( true );
     }
-    ui->remove_user_button->setEnabled( false );
-    ui->login_user_button->setEnabled( false );
     QMessageBox::information( this, "Done", "All accounts with green button are logged in" );
   }
 }
@@ -507,22 +515,17 @@ void MainDialog::ShowError( int const index, QString const & message )
 
 void MainDialog::OnLogoutButtonClicked()
 {
-  int logged_out_accounts {};
   for( int i = 0; i != logins_.size(); ++i )
   {
     auto& user_account{ logins_[i] };
     auto account_widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( i )->widget() );
     if( !account_widget->IsSelected() ){
-      if( !user_account->is_logged_in_ ) ++logged_out_accounts;
       continue;
     }
     user_account->is_logged_in_ = false;
     telegram_accounts_[i].reset( new Account( i, logins_[i], this ) );
     account_widget->SetStatus( user_status_e::offline );
-    ++logged_out_accounts;
-  }
-  if( logged_out_accounts == logins_.size() - 1 ){
-    DisableAllButtons();
+    account_widget->HideGroup();
   }
 }
 

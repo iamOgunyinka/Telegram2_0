@@ -57,7 +57,6 @@ void Account::InitiateLoginSequence()
   QObject::connect( background_worker_, &BackgroundWorker::requested_app_paramters,
                     [this]
   {
-    qDebug() << login_info_->encryption_key_;
     auto parameters = td_api::make_object<td_api::tdlibParameters>();
     parameters->database_directory_ = login_info_->phone_number_.toStdString();
     parameters->use_message_database_ = true;
@@ -118,6 +117,7 @@ void Account::RequestForChats()
                                      std::numeric_limits<std::int64_t>::max(), 0,
                                      MaxResultAllowed ), []( ObjectPtr response_ptr )
   {
+    qDebug() << "We are here";
     (void) response_ptr;
     /*
     if (response_ptr->get_id() == td_api::error::ID) {

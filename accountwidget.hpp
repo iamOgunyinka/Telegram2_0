@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QStandardItemModel>
 #include <QVector>
+#include <QMap>
 
 namespace Ui {
 class AccountWidget;
@@ -25,14 +26,19 @@ public:
   bool eventFilter( QObject*, QEvent* ) override;
 
   void SetChecked( bool );
+  void HideGroup();
   void SetStatus( user_status_e );
   bool IsSelected() const;
   QString PhoneNumber() const;
+  void SetGroupNames( QMap<int64_t, QString> const & );
+  QVector<std::int64_t> SelectedItems() const;
 private:
   void OnSelectionChanged( QStandardItem* );
+  void PopulateModel();
 private:
   Ui::AccountWidget *ui;
   QStandardItemModel group_model_{};
-  QVector<QStandardItem*> selected_items_{};
+  int total_selected = 0;
+  QMap<std::int64_t, QString> group_names_;
 };
 

@@ -43,7 +43,7 @@ class Account: public QObject
 public:
   Account( int index, std::shared_ptr<LoginInformation>, QObject* parent );
   ~Account() override;
-
+  auto& Groups() { return background_worker_->Groups(); }
 public:
   decltype (BackgroundWorker::users_)& GetUsers();
   SearchResultList& GetSearchResult();

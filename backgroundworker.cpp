@@ -80,12 +80,17 @@ void BackgroundWorker::ProcessUpdate( ObjectPtr ptr )
                            OnAuthorizationStateUpdate();
                          }, [this](td_api::updateUser& update_user)
   {
-    qDebug() << update_user.user_->username_.c_str();
     auto user_id = update_user.user_->id_;
     users_[user_id] = std::move(update_user.user_);
   }, [this](td_api::updateNewChat& chat)
   {
-    qDebug() << chat.chat_->title_.c_str();
+    int const chat_type_id = chat.chat_->type_->get_id();
+    static int const big_group = 955'152'366;
+    static int const small_group = 21'815'278;
+    if( chat_type_id == big_group || chat_type_id == small_group ){
+      channels_map_[chat.chat_->id_] = QString::fromStdString( chat.chat_->title_ );
+      qDebug() << "ID: " << chat.chat_->id_ << " => " << QString::fromStdString( chat.chat_->title_ );
+    }
     chat_title_[chat.chat_->id_] = chat.chat_->title_;
   },
   [=]( auto& ){}));

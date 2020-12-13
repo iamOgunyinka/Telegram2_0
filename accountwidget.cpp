@@ -3,22 +3,47 @@
 #include <QBitmap>
 #include <QLineEdit>
 
-AccountWidget::AccountWidget( QString const &phone_number, QWidget *parent) :
-  QWidget(parent), ui(new Ui::AccountWidget)
+QStandardItem* CreateCheckableItem( QString const &caption, bool checked )
+{
+  auto item = new QStandardItem( caption );
+  item->setFlags( Qt::ItemIsUserCheckable | Qt::ItemIsEnabled );
+  item->setData( checked ? Qt::Checked : Qt::Unchecked, Qt::CheckStateRole );
+  return item;
+}
+
+AccountWidget::AccountWidget(QString const &phone_number, QWidget *parent ):
+  QWidget(parent), ui(new Ui::AccountWidget), group_names_{}
 {
   ui->setupUi(this);
   ui->phone_number_label->setText( phone_number );
   ui->groups_combo->setEditable( true );
   ui->groups_combo->installEventFilter( this );
-  QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
-                    &AccountWidget::OnSelectionChanged );
-  SetStatus( user_status_e::offline );
   ui->groups_combo->setVisible( false );
+  SetStatus( user_status_e::offline );
 }
 
 AccountWidget::~AccountWidget()
 {
   delete ui;
+}
+
+void AccountWidget::PopulateModel()
+{
+  group_model_.clear();
+  group_model_.setColumnCount( 1 );
+
+  for( auto const & group_name: group_names_ ){
+    group_model_.appendRow( CreateCheckableItem( group_name, false ));
+  }
+  if( group_model_.rowCount() > 1 ){
+    group_model_.insertRow( 0, CreateCheckableItem( tr("Select all"), false ) );
+  }
+  ui->groups_combo->setModel( &group_model_ );
+  QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
+                    &AccountWidget::OnSelectionChanged );
+  if( !ui->groups_combo->isVisible() && group_model_.rowCount() > 0 ){
+    ui->groups_combo->setVisible( true );
+  }
 }
 
 bool AccountWidget::eventFilter( QObject *object, QEvent *event )
@@ -36,34 +61,27 @@ void AccountWidget::SetChecked( bool const checked )
   emit is_selected( checked );
 }
 
+void AccountWidget::HideGroup()
+{
+  group_names_.clear();
+  group_model_.clear();
+  ui->groups_combo->clear();
+  ui->groups_combo->hide();
+}
+
 void AccountWidget::SetStatus( user_status_e const status )
 {
   QString filename{};
   if( status == user_status_e::offline ){
-    filename = ":/images/offline.png";
+    filename = ":/icons/images/offline.png";
   } else {
-    filename = ":/images/online.png";
+    filename = ":/icons/images/online.png";
   }
 
   QPixmap const offline_pixmap_temp{ filename };
   auto const offline_pixmap = offline_pixmap_temp.scaled( 20, 20 );
   ui->status_label->setPixmap( offline_pixmap );
   ui->status_label->setMask( offline_pixmap.mask() );
-}
-
-QStandardItem* CreateCheckableItem( QString const &caption, bool checked )
-{
-  auto item = new QStandardItem( caption );
-  item->setFlags( Qt::ItemIsUserCheckable | Qt::ItemIsEnabled );
-  item->setData( checked ? Qt::Checked : Qt::Unchecked, Qt::CheckStateRole );
-  return item;
-}
-
-void SetComboText( QComboBox *combo, const QString & text )
-{
-  combo->setCurrentText( "" );
-  combo->lineEdit()->clear();
-  combo->lineEdit()->setPlaceholderText( text );
 }
 
 bool AccountWidget::IsSelected() const
@@ -75,38 +93,52 @@ QString AccountWidget::PhoneNumber() const {
   return ui->phone_number_label->text();
 }
 
+void AccountWidget::SetGroupNames( QMap<std::int64_t, QString> const &group_names )
+{
+  group_names_ = group_names;
+  PopulateModel();
+}
+
+QVector<std::int64_t> AccountWidget::SelectedItems() const
+{
+  int const index = ( group_model_.rowCount() > 0 && group_model_.item( 0 )->text()
+                      != tr( "Select all" ) ) ? 0: 1;
+
+  QVector<std::int64_t> selected_items{};
+  for( int i = index; i < group_model_.rowCount(); ++i ){
+    if( auto item = group_model_.item( i ); item->checkState() == Qt::Checked ){
+      selected_items.push_back( group_names_.key( item->text() ) );
+    }
+  }
+  return selected_items;
+}
+
 void AccountWidget::OnSelectionChanged( QStandardItem *item )
 {
   if( group_model_.indexFromItem( item ).row() == 0 ){
     auto const check_state = item->checkState();
     QObject::disconnect( &group_model_, &QStandardItemModel::itemChanged, this,
                          &AccountWidget::OnSelectionChanged );
-    selected_items_.clear();
+    total_selected = 0;
     for( int i = 1; i != group_model_.rowCount(); ++i ){
       auto current_item = group_model_.item( i );
-      if( check_state == Qt::Checked ) selected_items_.push_back( current_item );
+      if( check_state == Qt::Checked ){
+        ++total_selected;
+      }
       current_item->setCheckState( check_state );
-    }
-    if( check_state == Qt::Checked ){
-      SetComboText( ui->groups_combo, "Select all" );
     }
     QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
                       &AccountWidget::OnSelectionChanged );
     return;
   }
-  QString const item_text = item->text();
-  if( item->checkState() == Qt::Checked ){
-    selected_items_.append( item );
-  } else {
-    selected_items_.removeAll( item );
-  }
-  QString text {};
-  for( auto const & current_item: selected_items_ ){
-    text.append( current_item->text() + "," );
-  }
-  if( text.endsWith( ',' ) ) text.chop( 1 );
 
-  if( selected_items_.isEmpty() ){
+  if( item->checkState() == Qt::Checked ){
+    ++total_selected;
+  } else {
+    --total_selected;
+  }
+
+  if( total_selected == 0 ){
     if( group_model_.item( 0 )->checkState() == Qt::Checked ){
       QObject::disconnect( &group_model_, &QStandardItemModel::itemChanged, this,
                            &AccountWidget::OnSelectionChanged );
@@ -114,8 +146,7 @@ void AccountWidget::OnSelectionChanged( QStandardItem *item )
       QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
                         &AccountWidget::OnSelectionChanged );
     }
-    SetComboText( ui->groups_combo, "" );
-  } else if( selected_items_.size() == 1 ) {
+  } else if( total_selected == 1 ) {
     if( group_model_.item( 0 )->checkState() == Qt::Checked &&
         group_model_.rowCount() - 1 != 1 )
     {
@@ -124,7 +155,6 @@ void AccountWidget::OnSelectionChanged( QStandardItem *item )
       QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
                         &AccountWidget::OnSelectionChanged );
     }
-    SetComboText( ui->groups_combo, text );
   } else {
     if( group_model_.item( 0 )->checkState() == Qt::Checked &&
         item->checkState() == Qt::Unchecked )
@@ -134,15 +164,13 @@ void AccountWidget::OnSelectionChanged( QStandardItem *item )
       QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
                         &AccountWidget::OnSelectionChanged );
     } else if( group_model_.item( 0 )->checkState() == Qt::Unchecked &&
-               group_model_.rowCount() - 1 == selected_items_.size() )
+               ( group_model_.rowCount() - 1 ) == total_selected )
     {
       group_model_.disconnect( this );
       group_model_.item( 0 )->setCheckState( Qt::Checked );
-      SetComboText( ui->groups_combo, "Select all" );
       QObject::connect( &group_model_, &QStandardItemModel::itemChanged, this,
                         &AccountWidget::OnSelectionChanged );
       return;
     }
-    SetComboText( ui->groups_combo, text );
   }
 }
