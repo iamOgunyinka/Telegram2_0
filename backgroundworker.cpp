@@ -89,7 +89,6 @@ void BackgroundWorker::ProcessUpdate( ObjectPtr ptr )
     static int const small_group = 21'815'278;
     if( chat_type_id == big_group || chat_type_id == small_group ){
       channels_map_[chat.chat_->id_] = QString::fromStdString( chat.chat_->title_ );
-      qDebug() << "ID: " << chat.chat_->id_ << " => " << QString::fromStdString( chat.chat_->title_ );
     }
     chat_title_[chat.chat_->id_] = chat.chat_->title_;
   },

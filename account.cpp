@@ -115,19 +115,8 @@ void Account::RequestForChats()
 {
   background_worker_->SendRequest( NextID(), td_api::make_object<td_api::getChats>(
                                      std::numeric_limits<std::int64_t>::max(), 0,
-                                     MaxResultAllowed ), []( ObjectPtr response_ptr )
+                                     MaxResultAllowed ), []( ObjectPtr )
   {
-    qDebug() << "We are here";
-    (void) response_ptr;
-    /*
-    if (response_ptr->get_id() == td_api::error::ID) {
-      return;
-    }
-    auto chats = td::move_tl_object_as<td_api::chats>(response_ptr);
-    for (auto chat_id : chats->chat_ids_) {
-      qDebug() << "[id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
-    }
-    */
   });
 }
 

@@ -32,9 +32,23 @@ void AccountWidget::PopulateModel()
   group_model_.clear();
   group_model_.setColumnCount( 1 );
 
+  QFontMetrics const fm( ui->groups_combo->font() );
+  int const max_length = 400;
+  int new_max_length = max_length;
+
   for( auto const & group_name: group_names_ ){
-    group_model_.appendRow( CreateCheckableItem( group_name, false ));
+    auto elided_text = fm.elidedText( group_name,Qt::ElideMiddle, max_length );
+    while( elided_texts_.contains( elided_text ) && new_max_length >= 80 ){
+      new_max_length -= 1;
+      elided_text = fm.elidedText( group_name,Qt::ElideMiddle, new_max_length );
+    }
+    if( new_max_length < 30 ){
+      new_max_length = max_length;
+    }
+    elided_texts_[elided_text] = group_name;
+    group_model_.appendRow( CreateCheckableItem( elided_text, false ));
   }
+
   if( group_model_.rowCount() > 1 ){
     group_model_.insertRow( 0, CreateCheckableItem( tr("Select all"), false ) );
   }
@@ -107,7 +121,7 @@ QVector<std::int64_t> AccountWidget::SelectedItems() const
   QVector<std::int64_t> selected_items{};
   for( int i = index; i < group_model_.rowCount(); ++i ){
     if( auto item = group_model_.item( i ); item->checkState() == Qt::Checked ){
-      selected_items.push_back( group_names_.key( item->text() ) );
+      selected_items.push_back( group_names_.key( elided_texts_[item->text()] ) );
     }
   }
   return selected_items;

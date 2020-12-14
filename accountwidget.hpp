@@ -40,5 +40,6 @@ private:
   QStandardItemModel group_model_{};
   int total_selected = 0;
   QMap<std::int64_t, QString> group_names_;
+  QMap<QString, QString> elided_texts_{};
 };
 

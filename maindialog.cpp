@@ -271,19 +271,36 @@ void MainDialog::OnSearchResultObtained( int const index, std::string const & te
   auto& chat_titles{ telegram_accounts_[index]->ChatTitles() };
   for( std::size_t i = 0; i != messages.size(); ++i ){
     auto& message = messages[i];
-    if ( message->content_->get_id() == td_api::messageText::ID ) {
-      auto content = td::move_tl_object_as<td_api::messageText>(message->content_);
-      auto& sender = users[message->sender_user_id_];
+    int const message_type_id = message->content_->get_id();
+    if ( message_type_id == td_api::messageText::ID ) {
+      auto const content = td::move_tl_object_as<td_api::messageText>(message->content_);
+      auto const sender_iter = users.find( message->sender_user_id_ );
+      bool const has_sender_info = sender_iter != users.end();
 
-      auto const sender_first_name = QString::fromStdString( sender->first_name_ );
-      auto const sender_username = QString::fromStdString( sender->username_ );
-      QString text_sent = QString::fromStdString( content->text_->text_ );
-      QString chat_name = QString::fromStdString( chat_titles[message->chat_id_] );
-      std::int64_t chat_id = message->chat_id_;
-      std::int64_t message_id = message->id_;
-      std::int32_t date_id = message->date_;
-      search_results.emplace_back( SearchResult{ chat_name, sender_first_name, sender_username,
-                                                 text_sent, message_id, chat_id, date_id } );
+      if( has_sender_info ){
+        auto& sender = sender_iter->second;
+        auto const sender_first_name = QString::fromStdString( sender->first_name_ );
+        auto const sender_username = QString::fromStdString( sender->username_ );
+        auto const text_sent = QString::fromStdString( content->text_->text_ );
+        auto const chat_name = QString::fromStdString( chat_titles[message->chat_id_] );
+        std::int64_t chat_id = message->chat_id_;
+        std::int64_t message_id = message->id_;
+        std::int32_t date_id = message->date_;
+        search_results.emplace_back( SearchResult{ chat_name, sender_first_name, sender_username,
+                                                   text_sent, message_id, chat_id, date_id } );
+      } else if( !has_sender_info && message->is_channel_post_ ){
+        QString text_sent = QString::fromStdString( content->text_->text_ );
+        QString chat_name = QString::fromStdString( chat_titles[message->chat_id_] );
+        std::int64_t chat_id = message->chat_id_;
+        std::int64_t message_id = message->id_;
+        std::int32_t date_id = message->date_;
+        search_results.emplace_back( SearchResult{ chat_name, "", "", text_sent, message_id,
+                                                   chat_id, date_id } );
+      } else {
+        continue;
+      }
+    } else {
+      qDebug() << message_type_id;
     }
     if( ++messages_extracted >= messages_ptr->total_count_ ){
       emit search_done( SearchResultType::Successful, index );
@@ -366,7 +383,7 @@ void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
   sheet->write( "A1", tr( "S/N" ) );
   sheet->write( "C1", tr( "Group/Chat name" ) );
   sheet->write( "E1", tr( "Sender name" ) );
-  sheet->write( "G1", tr("Sender username" ) );
+  sheet->write( "G1", tr("@username(sender)" ) );
   sheet->write( "I1", tr( "Text" ) );
   sheet->write( "K1", tr( "Phone number" ) );
   sheet->write( "M1", logins_[index]->phone_number_ );
@@ -424,6 +441,7 @@ void MainDialog::OnRemoveAccountButtonClicked()
   }
   for( auto& marked_widget: marked_widgets ){
     ui->flayout->removeItem( marked_widget );
+    delete marked_widget;
   }
   ui->login_user_button->setEnabled( false );
   ui->remove_user_button->setEnabled( false );
