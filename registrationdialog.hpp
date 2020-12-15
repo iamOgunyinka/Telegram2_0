@@ -10,8 +10,8 @@ class RegistrationDialog;
 class RegistrationDialog : public QDialog
 {
     Q_OBJECT
-    QString RandomString( int length );
-    char AsciiRandomChoice();
+    QString RandomString( int length ) const;
+    char AsciiRandomChoice() const;
 public:
     explicit RegistrationDialog(QWidget *parent = nullptr);
     ~RegistrationDialog() override;

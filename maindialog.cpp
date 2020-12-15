@@ -25,8 +25,10 @@ MainDialog::MainDialog(QWidget *parent): QDialog(parent), ui(new Ui::MainDialog)
   ui->setupUi( this );
   QObject::connect( ui->new_user_button, &QPushButton::clicked, this,
                     &MainDialog::OnCreateUserButtonClicked );
-  QObject::connect( ui->login_user_button, &QPushButton::clicked, this,
-                    &MainDialog::OnLoginButtonClicked );
+  QObject::connect( ui->login_user_button, &QPushButton::clicked, [this]
+  {
+    LogUserIn();
+  });
   QObject::connect( ui->logout_button, &QPushButton::clicked, this,
                     &MainDialog::OnLogoutButtonClicked );
   QObject::connect( ui->remove_user_button, &QPushButton::clicked, this,
@@ -72,8 +74,6 @@ void MainDialog::DisableAllButtons()
   ui->remove_user_button->setEnabled( false );
   ui->login_user_button->setEnabled( false );
   ui->working_time_button->setEnabled( false );
-  ui->login_user_button->setVisible( false );
-  ui->remove_user_button->setVisible( false );
 }
 
 MainDialog::~MainDialog()
@@ -86,11 +86,11 @@ void MainDialog::OnAccountSearchDone( SearchResultType type, int const index )
   ui->search_button->setEnabled( true );
   ++requests_responded_to_;
   if( type == SearchResultType::NoResult ){
-    QMessageBox::information( this, "Search", "No result found" );
+    QMessageBox::information( this, tr("Search"), tr("No result found"));
     return;
   } else if( type == SearchResultType::ServerError ){
-    QMessageBox::critical( this, "Search", "There was an error on the server-side, so search "
-                                           "could not be completed" );
+    QMessageBox::critical( this, tr("Search"), tr("There was an error on the server-side, "
+                                                  "so search could not be completed"));
     return;
   }
 
@@ -184,8 +184,8 @@ void MainDialog::OnSearchButtonClicked()
   ui->export_result_button->setEnabled( false );
   ui->textEdit->clear();
   if( background_search_scheduled_ ){
-    QMessageBox::critical( this, "Task", "You have a background search ongoing, suspend "
-                                         "it first" );
+    QMessageBox::critical( this, tr("Task"), tr("You have a background search ongoing, suspend "
+                                                "it first" ));
     return;
   }
   search_text_ = ui->query_line->text().trimmed().toStdString();
@@ -227,8 +227,8 @@ void MainDialog::OnStartScheduledSearchClicked()
     ++proposed_requests_;
   }
   if( proposed_requests_ == 0 ){
-    QMessageBox::information( this, "Search", "Choose an account(online) to conduct a search "
-                                              "on" );
+    QMessageBox::information( this, tr("Search"),
+                              tr("Choose an account(online) to conduct a search on" ));
     return;
   }
   bg_search_elapsed_timer_ = std::make_unique<QTimer>();
@@ -322,7 +322,7 @@ void MainDialog::OnSearchResultObtained( int const index, std::string const & te
 
 void MainDialog::StartExport()
 {
-  QString const directory{ QFileDialog::getExistingDirectory( this, "Directory" ) };
+  QString const directory{ QFileDialog::getExistingDirectory( this, tr("Directory")) };
   for( int i = 0; i != logins_.size(); ++i )
   {
     auto account_widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( i )->widget() );
@@ -343,7 +343,7 @@ void MainDialog::StartExport()
     }
   }
   if( !directory.isEmpty() ){
-    QMessageBox::information( this, "Status", "File(s) saved successfully" );
+    QMessageBox::information( this, tr("Status"), tr("File(s) saved successfully"));
   }
 }
 
@@ -359,7 +359,7 @@ void MainDialog::OnStopScheduledSearchClicked()
       telegram_accounts_[i]->StopBackgroundSearch();
     }
   }
-  ui->textEdit->append( "Background search stopped" );
+  ui->textEdit->append( tr("Background search stopped"));
   ui->schedule_start_button->setDisabled( false );
   StartExport();
 }
@@ -387,7 +387,7 @@ void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
   sheet->write( "I1", tr( "Text" ) );
   sheet->write( "K1", tr( "Phone number" ) );
   sheet->write( "M1", logins_[index]->phone_number_ );
-  sheet->write( "O1", "Keyword" );
+  sheet->write( "O1", tr("Keyword"));
   sheet->write( "Q1", QString::fromStdString( search_text_ ) );
 
   std::size_t counter{ 3 };
@@ -406,11 +406,11 @@ void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
       continue;
     }
     unique_elements.insert( unique_text );
-    sheet->write( tr( "A%1" ).arg( counter ), counter - 2 );
-    sheet->write( tr( "C%1" ).arg( counter ), item.chat_name );
-    sheet->write( tr( "E%1" ).arg( counter ), item.sender_firstname );
-    sheet->write( tr( "G%1" ).arg( counter ), item.sender_username );
-    sheet->write( tr( "I%1" ).arg( counter ), item.text );
+    sheet->write( QString( "A%1" ).arg( counter ), counter - 2 );
+    sheet->write( QString( "C%1" ).arg( counter ), item.chat_name );
+    sheet->write( QString( "E%1" ).arg( counter ), item.sender_firstname );
+    sheet->write( QString( "G%1" ).arg( counter ), item.sender_username );
+    sheet->write( QString( "I%1" ).arg( counter ), item.text );
     ++counter;
   }
   doc.save();
@@ -418,6 +418,14 @@ void MainDialog::ExportSearchResult( QString const &dir_name, int const index,
 
 void MainDialog::OnRemoveAccountButtonClicked()
 {
+  if( ui->flayout->count() == 0 ||
+      QMessageBox::question( this, tr( "Confirmation" ),
+                             tr( "Are you sure you want to delete these accounts?" )) ==
+      QMessageBox::No )
+  {
+    return;
+  }
+
   QVector<int> elements_marked_for_deletion{};
   QVector<QLayoutItem*> marked_widgets{};
 
@@ -431,20 +439,23 @@ void MainDialog::OnRemoveAccountButtonClicked()
     elements_marked_for_deletion.push_back( i );
     marked_widgets.push_back( item );
   }
-  if( !elements_marked_for_deletion.isEmpty() &&
-      QMessageBox::question( this, "Confirmation", "Are you sure you want to delete these "
-                             "accounts?" ) == QMessageBox::No ) return;
+
+  if( elements_marked_for_deletion.isEmpty() ){
+    return;
+  }
+
   for( auto const & row: elements_marked_for_deletion ){
     telegram_accounts_[row].reset();
     telegram_accounts_.removeAt( row );
     logins_.removeAt( row );
   }
-  for( auto& marked_widget: marked_widgets ){
-    ui->flayout->removeItem( marked_widget );
-    delete marked_widget;
+
+  for( auto& marked_item: marked_widgets ){
+    ui->flayout->removeItem( marked_item );
+    auto account_widget = qobject_cast<AccountWidget*>( marked_item->widget() );
+    delete account_widget;
   }
-  ui->login_user_button->setEnabled( false );
-  ui->remove_user_button->setEnabled( false );
+
   SaveLoginInfoToDisk();
 }
 
@@ -453,7 +464,7 @@ void MainDialog::SaveLoginInfoToDisk()
   if( logins_.isEmpty() ) return;
   QFile out_file{ startup_filename };
   if(!out_file.open( QIODevice::WriteOnly ) ){
-    QMessageBox::information( this, "Error", "Unable to save login information" );
+    QMessageBox::information( this, tr("Error"), tr("Unable to save login information"));
     return;
   }
   QTextStream text_stream{ &out_file };
@@ -466,10 +477,13 @@ void MainDialog::SaveLoginInfoToDisk()
 
 void MainDialog::OnCreateUserButtonClicked()
 {
-  RegistrationDialog* registration_dialog{ new RegistrationDialog( this ) };
-  if( registration_dialog->exec() == QDialog::Accepted ){
-    auto const phone_number{ registration_dialog->PhoneNumber() };
-    auto const encryption_key{ registration_dialog->EncryptionKey() };
+  {
+    RegistrationDialog registration_dialog{ this };
+    if( registration_dialog.exec() != QDialog::Accepted ){
+      return;
+    }
+    auto const phone_number{ registration_dialog.PhoneNumber() };
+    auto const encryption_key{ registration_dialog.EncryptionKey() };
     auto login_info = LoginInformation{ false, phone_number, encryption_key };
     auto login_info_ptr = std::make_shared<LoginInformation>( std::move( login_info ) );
     logins_.push_back( login_info_ptr );
@@ -478,34 +492,60 @@ void MainDialog::OnCreateUserButtonClicked()
     AddLoginInformation( logins_.back()->phone_number_ );
   }
   SaveLoginInfoToDisk();
+  if( ui->select_all_checkbox->isChecked() ){
+    ui->select_all_checkbox->setChecked( false );
+  } else {
+    for( int i = 0; i < logins_.size() - 1; ++i ){
+      auto widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( i )->widget() );
+      if( widget->IsSelected() && !logins_[i]->is_logged_in_ ){
+        widget->SetChecked( false );
+      }
+    }
+  }
+
+  auto widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( logins_.size() - 1 )->widget() );
+  widget->SetChecked( true );
+  LogUserIn();
 }
 
 void MainDialog::AuthorizationCodeNeeded( int const index )
 {
-  auto code = QInputDialog::getText( this, "Request", tr( "Enter authorization code for "
-                                                          "%1" ).arg( logins_[index]->
-                                                                      phone_number_ ),
-                                     QLineEdit::Password ).toStdString();
+  auto const code = QInputDialog::getText( this, tr("Request"),
+                                           tr( "Enter authorization code for %1" )
+                                           .arg( logins_[index]->phone_number_ ),
+                                           QLineEdit::Password );
   telegram_accounts_[index]->SendAuthorizationRequest( td_api::make_object<td_api::
-                                                       checkAuthenticationCode>(code) );
+                                                       checkAuthenticationCode>(code.toStdString()));
 }
 
 void MainDialog::AuthorizationPasswordNeeded( int const index )
 {
-  auto password{ QInputDialog::getText( this, "Password", tr( "Enter authorization "
-                                                              "password for %1" ).arg(
-                                          logins_[index]->phone_number_ ), QLineEdit::Password )};
+  auto const password{
+    QInputDialog::getText( this, tr("Password"),
+                           tr( "Enter authorization password for %1" )
+                           .arg( logins_[index]->phone_number_ ), QLineEdit::Password )
+  };
   telegram_accounts_[index]->SendAuthorizationRequest( td_api::make_object<td_api::
                                                        checkAuthenticationPassword>
                                                        ( password.toStdString() ) );
 }
 
-void MainDialog::HandshakeCompleted( int const index )
+void MainDialog::NewChannelObtained( int const index, channel_pair_t const & channel_info )
 {
   auto item = ui->flayout->itemAt( index );
   auto account_widget = qobject_cast<AccountWidget*>( item->widget() );
-  account_widget->SetStatus( user_status_e::online );
-  account_widget->SetGroupNames( telegram_accounts_[index]->Groups() );
+  account_widget->AddGroupName( channel_info );
+}
+
+void MainDialog::HandshakeCompleted( int const index )
+{
+  if( logins_[index]->is_logged_in_ ){
+    auto item = ui->flayout->itemAt( index );
+    auto account_widget = qobject_cast<AccountWidget*>( item->widget() );
+    account_widget->SetStatus( user_status_e::online );
+  } else {
+    QMessageBox::information( this, tr("Login"), tr("Please manually login account"));
+  }
   CheckIfLoginCompleted();
 }
 
@@ -517,13 +557,13 @@ void MainDialog::CheckIfLoginCompleted()
     if( !background_search_scheduled_ ){
       ui->schedule_start_button->setEnabled( true );
     }
-    QMessageBox::information( this, "Done", "All accounts with green button are logged in" );
+    QMessageBox::information( this, tr("Done"), tr("All accounts with green button are logged in"));
   }
 }
 
 void MainDialog::ShowError( int const index, QString const & message )
 {
-  QMessageBox::critical( this, "Error", message );
+  QMessageBox::critical( this, tr("Error"), message );
   auto item = ui->flayout->itemAt( index );
   auto account_widget = qobject_cast<AccountWidget*>( item->widget() );
   account_widget->SetChecked( false );
@@ -547,10 +587,11 @@ void MainDialog::OnLogoutButtonClicked()
   }
 }
 
-void MainDialog::OnLoginButtonClicked()
+void MainDialog::LogUserIn()
 {
   proposed_requests_ = 0;
   requests_responded_to_ = 0;
+
   for( int i = 0; i != logins_.size(); ++i ){
     auto& user_acct{ logins_[i] };
     auto account_widget = qobject_cast<AccountWidget*>( ui->flayout->itemAt( i )->widget() );
@@ -560,18 +601,25 @@ void MainDialog::OnLoginButtonClicked()
     auto account_ptr = telegram_accounts_[i].get();
     QObject::connect(account_ptr, &Account::requested_authorization_code, [=]( int const index )
     {
-      QMetaObject::invokeMethod( this, "AuthorizationCodeNeeded", Qt::QueuedConnection,
+      QMetaObject::invokeMethod( this, "AuthorizationCodeNeeded", Qt::BlockingQueuedConnection,
                                  Q_ARG( int, index ) );
+    });
+    QObject::connect( account_ptr, &Account::new_channel_obtained,
+                      [this, i]( channel_pair_t const & channel_info )
+    {
+      QMetaObject::invokeMethod( this, "NewChannelObtained", Qt::QueuedConnection,
+                                 Q_ARG( int const, i ),
+                                 Q_ARG( channel_pair_t const&, channel_info ) );
     });
     QObject::connect( account_ptr, &Account::requested_authorization_password,
                       [=]( int const index )
     {
-      QMetaObject::invokeMethod( this, "AuthorizationPasswordNeeded", Qt::QueuedConnection,
+      QMetaObject::invokeMethod( this, "AuthorizationPasswordNeeded", Qt::BlockingQueuedConnection,
                                  Q_ARG( int const, index ) );
     });
     QObject::connect( account_ptr, &Account::handshake_completed, [=]( int row )
     {
-      QMetaObject::invokeMethod( this, "HandshakeCompleted", Qt::QueuedConnection,
+      QMetaObject::invokeMethod( this, "HandshakeCompleted", Qt::BlockingQueuedConnection,
                                  Q_ARG( int const, row ) );
     });
     ++proposed_requests_;
@@ -597,4 +645,10 @@ void MainDialog::AddLoginInformation( QString const & info )
   });
 
   ui->flayout->insertRow( ui->flayout->count(), new_account_widget );
+  if( !ui->login_user_button->isEnabled() ){
+    ui->login_user_button->setEnabled( true );
+  }
+  if( !ui->remove_user_button->isEnabled() ){
+    ui->remove_user_button->setEnabled( true );
+  }
 }

@@ -19,8 +19,11 @@ enum class SearchResultType
     ServerError
 };
 
+using channel_pair_t = QPair<std::int64_t const, QString>;
+
 Q_DECLARE_METATYPE( std::shared_ptr<ObjectPtr> );
 Q_DECLARE_METATYPE( SearchResultType );
+Q_DECLARE_METATYPE( channel_pair_t );
 
 class MainDialog : public QDialog
 {
@@ -30,7 +33,7 @@ class MainDialog : public QDialog
     void SaveLoginInfoToDisk();
     void DisableAllButtons();
     void OnCreateUserButtonClicked();
-    void OnLoginButtonClicked();
+    void LogUserIn();
     void OnLogoutButtonClicked();
     void OnRemoveAccountButtonClicked();
     void CheckIfLoginCompleted();
@@ -50,6 +53,7 @@ public slots:
     void AuthorizationCodeNeeded( int );
     void AuthorizationPasswordNeeded( int );
     void HandshakeCompleted( int );
+    void NewChannelObtained( int, channel_pair_t const & channel_info );
     void ShowError( int index, QString const & message );
     void OnAccountSearchDone( SearchResultType, int );
     void OnSearchResultObtained( int, std::string const &, std::shared_ptr<ObjectPtr> );

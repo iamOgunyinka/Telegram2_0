@@ -83,11 +83,17 @@ void Account::InitiateLoginSequence()
   QObject::connect( background_worker_, &BackgroundWorker::requested_authorization_password, [=]{
     emit requested_authorization_password( index_ );
   });
+  QObject::connect( background_worker_, &BackgroundWorker::new_channel_obtained,
+                    [=]( auto const & channel_info )
+  {
+    emit new_channel_obtained( channel_info );
+  });
+
   QObject::connect( background_worker_, &BackgroundWorker::handshake_completed,
                     [=]( bool const has_error ){
     login_info_->is_logged_in_ = !has_error;
+    emit handshake_completed( index_ );
     if( login_info_->is_logged_in_ ){
-      emit handshake_completed( index_ );
       RequestForChats();
       background_worker_->StartPolling();
     }
@@ -115,8 +121,21 @@ void Account::RequestForChats()
 {
   background_worker_->SendRequest( NextID(), td_api::make_object<td_api::getChats>(
                                      std::numeric_limits<std::int64_t>::max(), 0,
-                                     MaxResultAllowed ), []( ObjectPtr )
+                                     MaxResultAllowed ), [this]( ObjectPtr ptr )
   {
+    td_api::downcast_call( *ptr,
+                           overloaded( [this](td_api::updateNewChat& chat)
+    {
+      int const chat_type_id = chat.chat_->type_->get_id();
+      static int const big_group = 955'152'366;
+      static int const small_group = 21'815'278;
+      if( chat_type_id == big_group || chat_type_id == small_group ){
+        emit new_channel_obtained( { chat.chat_->id_, QString::fromStdString( chat.chat_->title_ ) } );
+      }
+      auto chat_titles = background_worker_->ChatTitles();
+      chat_titles[chat.chat_->id_] = chat.chat_->title_;
+    },
+    [=]( auto& ){}));
   });
 }
 
@@ -140,7 +159,7 @@ void Account::CheckAuthenticationError( ObjectPtr object )
   if ( object->get_id() == td_api::error::ID ){
     background_worker_->SetHasError();
     auto error = to_string( td::move_tl_object_as<td_api::error>(object) );
-    auto error_message{ tr( "%1\n\n%2" ).arg( login_info_->phone_number_ )
+    auto error_message{ QString( "%1\n\n%2" ).arg( login_info_->phone_number_ )
           .arg( QString::fromStdString( error )) };
     QMetaObject::invokeMethod( parent(), "ShowError", Qt::QueuedConnection,
                                Q_ARG( int, index_ ),

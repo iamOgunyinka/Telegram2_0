@@ -14,14 +14,14 @@ SchedulerDialog::SchedulerDialog(QWidget *parent) :
     QString const text { ui->search_line->text().trimmed() };
     QString const time_interval_secs{ ui->time_line->text().trimmed() };
     if( text.isEmpty() || text.isEmpty() ){
-      QMessageBox::critical( this, "Error", "This cannot be empty" );
+      QMessageBox::critical( this, tr("Error"), tr("This cannot be empty"));
       ui->search_line->setFocus();
       return ;
     }
     bool ok{ true };
     time_interval_secs.toInt(&ok);
     if( !ok ){
-      QMessageBox::critical( this, "Error", "Invalid number" );
+      QMessageBox::critical( this, tr("Error"), tr("Invalid number"));
       ui->time_line->setFocus();
       return;
     }

@@ -107,9 +107,12 @@ QString AccountWidget::PhoneNumber() const {
   return ui->phone_number_label->text();
 }
 
-void AccountWidget::SetGroupNames( QMap<std::int64_t, QString> const &group_names )
+void AccountWidget::AddGroupName( QPair<std::int64_t const, QString> const &group_name )
 {
-  group_names_ = group_names;
+  if( group_names_.contains(group_name.first) ){
+    return;
+  }
+  group_names_.insert( group_name.first, group_name.second );
   PopulateModel();
 }
 

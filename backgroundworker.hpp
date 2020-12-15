@@ -60,7 +60,6 @@ public:
   void StartPolling();
   std::map<std::int32_t, td_api::object_ptr<td_api::user>> users_;
   std::map<std::int64_t, std::string>& ChatTitles();
-  auto& Groups() { return channels_map_; }
   void SetHasError();
 signals:
   void handshake_completed( bool has_error );
@@ -69,6 +68,7 @@ signals:
   void requested_authorization_password();
   void requested_app_paramters();
   void requested_encryption_code();
+  void new_channel_obtained( QPair<std::int64_t const, QString> const & );
 private:
   void Restart();
   void ProcessResponse( ResponsePtr );
@@ -85,7 +85,6 @@ private:
   unsigned long long& authentication_query_id_;
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_ptr_;
   std::map<std::int64_t, std::string> chat_title_;
-  QMap<std::int64_t, QString> channels_map_;
   QObject *parent_window_{ nullptr };
 };
 

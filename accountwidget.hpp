@@ -30,7 +30,7 @@ public:
   void SetStatus( user_status_e );
   bool IsSelected() const;
   QString PhoneNumber() const;
-  void SetGroupNames( QMap<int64_t, QString> const & );
+  void AddGroupName( QPair<int64_t const, QString> const & );
   QVector<std::int64_t> SelectedItems() const;
 private:
   void OnSelectionChanged( QStandardItem* );

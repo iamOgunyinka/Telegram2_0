@@ -58,7 +58,7 @@ void BackgroundWorker::ProcessResponse( ResponsePtr response_ptr )
     return;
   }
 
-  static int const initial_request = 0;
+  static auto const initial_request = 0;
 
   if( response_ptr->id == initial_request ){
     ProcessUpdate( std::move( response_ptr->object ) );
@@ -88,7 +88,7 @@ void BackgroundWorker::ProcessUpdate( ObjectPtr ptr )
     static int const big_group = 955'152'366;
     static int const small_group = 21'815'278;
     if( chat_type_id == big_group || chat_type_id == small_group ){
-      channels_map_[chat.chat_->id_] = QString::fromStdString( chat.chat_->title_ );
+      emit new_channel_obtained( { chat.chat_->id_, QString::fromStdString( chat.chat_->title_ ) } );
     }
     chat_title_[chat.chat_->id_] = chat.chat_->title_;
   },
